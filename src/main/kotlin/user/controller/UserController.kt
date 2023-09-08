@@ -1,12 +1,9 @@
 package com.wafflestudio.seminar.spring2023.user.controller
 
-import com.wafflestudio.seminar.spring2023.user.service.UserService
+import com.wafflestudio.seminar.spring2023.user.service.*
+import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
-import org.springframework.web.bind.annotation.GetMapping
-import org.springframework.web.bind.annotation.PostMapping
-import org.springframework.web.bind.annotation.RequestBody
-import org.springframework.web.bind.annotation.RequestHeader
-import org.springframework.web.bind.annotation.RestController
+import org.springframework.web.bind.annotation.*
 
 @RestController
 class UserController(
@@ -17,22 +14,50 @@ class UserController(
     fun signup(
         @RequestBody request: SignUpRequest,
     ): ResponseEntity<Unit> {
-        TODO()
+        val (username, password, image) = request
+        try {
+            userService.signUp(username = username, password = password, image = image)
+        } catch (e: SignUpBadUsernameException) {
+            return ResponseEntity.badRequest().build()
+        } catch (e: SignUpBadPasswordException) {
+            return ResponseEntity.badRequest().build()
+        } catch (e: SignUpUsernameConflictException) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).build()
+        }
+        return ResponseEntity.ok().build()
     }
 
     @PostMapping("/api/v1/signin")
     fun signIn(
         @RequestBody request: SignInRequest,
     ): ResponseEntity<SignInResponse> {
-        TODO()
+        val (username, password) = request
+        val user = try {
+            userService.signIn(username = username, password = password)
+        } catch (e: SignInUserNotFoundException) {
+            return ResponseEntity.notFound().build()
+        } catch (e: SignInInvalidPasswordException) {
+            return ResponseEntity.notFound().build()
+        }
+        return ResponseEntity.ok(SignInResponse(accessToken = user.getAccessToken()))
     }
 
     @GetMapping("/api/v1/users/me")
     fun me(
         @RequestHeader(name = "Authorization", required = false) authorizationHeader: String?,
     ): ResponseEntity<UserMeResponse> {
-        TODO()
+        if (authorizationHeader == null || !authorizationHeader.startsWith("Bearer ")) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
+        }
+        val token = authorizationHeader.substring(7)
+        val (username, image) = try {
+            userService.authenticate(accessToken = token)
+        } catch (e: AuthenticateException) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
+        }
+        return ResponseEntity.ok(UserMeResponse(username = username, image = image))
     }
+
 }
 
 data class UserMeResponse(
